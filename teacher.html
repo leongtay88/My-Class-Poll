@@ -1,0 +1,1693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClassPulse Teacher Dashboard | Real-Time Classroom Polling</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- QRCode.js via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- Google Fonts: Inter & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              800: '#3730a3',
+              900: '#312e81',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(1.02); }
+    }
+    .pulse-badge { animation: pulse-subtle 2s infinite ease-in-out; }
+    /* Wheel spinner styling */
+    .wheel-container {
+      transition: transform 3.5s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans min-h-screen antialiased flex flex-col">
+
+  <!-- ============================================================================ -->
+  <!-- TOP APPLICATION NAVBAR                                                        -->
+  <!-- ============================================================================ -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <!-- Left: Logo & Room Badge -->
+      <div class="flex items-center space-x-3 sm:space-x-4">
+        <div class="flex items-center space-x-2">
+          <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="font-extrabold text-lg tracking-tight text-slate-900">ClassPulse</span>
+              <span class="hidden md:inline-block px-2 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">Teacher Host</span>
+            </div>
+            <p class="text-xs text-slate-500 hidden sm:block">MOE School Resilient Real-Time Polling</p>
+          </div>
+        </div>
+
+        <!-- Room Selector Pill -->
+        <div class="flex items-center bg-slate-100 hover:bg-slate-200/80 rounded-lg p-1 border border-slate-200 transition-colors">
+          <span class="text-xs font-medium text-slate-500 px-2 uppercase tracking-wider">Room:</span>
+          <input 
+            id="roomCodeInput" 
+            type="text" 
+            value="SEC1-A" 
+            maxlength="10" 
+            class="w-24 sm:w-28 text-sm font-bold uppercase font-mono bg-white px-2 py-1 rounded border border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            title="Change room code"
+          />
+          <button id="btnApplyRoom" class="ml-1 px-2.5 py-1 text-xs font-medium bg-slate-800 hover:bg-slate-900 text-white rounded transition-colors" title="Apply Room Code">
+            Set
+          </button>
+        </div>
+      </div>
+
+      <!-- Right: Connection Status, Quick Controls & Navigation -->
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        <!-- Live Connection Status Badge -->
+        <div id="netStatusBadge" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="netStatusText">Connecting...</span>
+        </div>
+
+        <!-- Projector Mode Toggle -->
+        <button id="btnToggleProjector" class="hidden sm:flex items-center space-x-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition shadow-xs" title="Toggle Big Screen Projector Mode">
+          <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+          </svg>
+          <span>Projector</span>
+        </button>
+
+        <!-- Test Student View in New Tab -->
+        <button id="btnOpenStudentTab" class="flex items-center space-x-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition shadow-xs" title="Open student view in new tab">
+          <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+          <span class="hidden sm:inline">Launch PLD View</span>
+          <span class="sm:hidden">PLD</span>
+        </button>
+
+        <!-- Firebase Config Dialog Opener -->
+        <button id="btnOpenConfigModal" class="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition" title="Firebase Settings">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============================================================================ -->
+  <!-- MAIN TEACHER CONTAINER                                                        -->
+  <!-- ============================================================================ -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- TOP METRICS & QUICK SUMMARY BAR -->
+    <section class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+      <!-- Metric 1: Connected PLDs -->
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center justify-between">
+        <div>
+          <p class="text-xs font-medium text-slate-500">Connected PLDs</p>
+          <p id="statConnectedStudents" class="text-2xl font-black text-slate-800 tracking-tight mt-0.5">0</p>
+          <span class="text-[11px] text-emerald-600 font-medium">Active in room</span>
+        </div>
+        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Metric 2: Submitted Answers -->
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center justify-between">
+        <div>
+          <p class="text-xs font-medium text-slate-500">Submitted Answers</p>
+          <div class="flex items-baseline space-x-1.5 mt-0.5">
+            <span id="statAnswerCount" class="text-2xl font-black text-indigo-600 tracking-tight">0</span>
+            <span id="statAnswerPercent" class="text-xs font-semibold text-slate-400">(0%)</span>
+          </div>
+          <span id="statResponseSubtitle" class="text-[11px] text-slate-500 font-medium">Waiting for poll</span>
+        </div>
+        <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Metric 3: Question State -->
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center justify-between">
+        <div>
+          <p class="text-xs font-medium text-slate-500">Poll Status</p>
+          <p id="statPollStatus" class="text-lg font-bold text-slate-700 mt-1">Inactive</p>
+          <span id="statPollTypeBadge" class="inline-block px-1.5 py-0.5 text-[10px] font-semibold uppercase bg-slate-100 text-slate-600 rounded">None</span>
+        </div>
+        <div id="statStatusIconContainer" class="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Metric 4: Quick Actions Menu -->
+      <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex flex-col justify-center space-y-1.5">
+        <button id="btnOpenRosterModal" class="w-full py-1.5 px-3 text-xs font-semibold bg-slate-800 hover:bg-slate-900 text-white rounded-lg transition flex items-center justify-center space-x-1.5">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          <span>Class Roster & Wheel</span>
+        </button>
+        <button id="btnPurgeRoom" class="w-full py-1.5 px-3 text-xs font-medium text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition flex items-center justify-center space-x-1.5">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          <span>Purge Class Submissions</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- TWO-COLUMN WORKSPACE: LEFT (Controls & Builder) | RIGHT (Live Results & Visualizer) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- LEFT COLUMN: Room QR, Question Builder, Task Assignment (5 cols on lg) -->
+      <div class="lg:col-span-5 space-y-6">
+
+        <!-- CARD: Student Joining / QR Code -->
+        <section class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+              <h2 class="font-bold text-slate-800 text-sm">Classroom Join Info</h2>
+            </div>
+            <button id="btnCopyStudentUrl" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center space-x-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              <span id="copyBtnText">Copy Link</span>
+            </button>
+          </div>
+
+          <div class="mt-4 flex flex-col sm:flex-row items-center gap-4">
+            <!-- Dynamic QR Code Container -->
+            <div class="p-2 bg-slate-50 border border-slate-200 rounded-xl shadow-inner flex flex-col items-center">
+              <div id="qrcode" class="w-[140px] h-[140px] flex items-center justify-center bg-white p-1 rounded-lg"></div>
+              <span class="text-[10px] text-slate-500 mt-1 font-medium">Scan on Student PLD</span>
+            </div>
+
+            <!-- Join Instructions -->
+            <div class="flex-1 text-center sm:text-left space-y-2">
+              <div>
+                <p class="text-xs text-slate-500 font-medium">Room Code to Display:</p>
+                <p id="displayRoomCode" class="text-2xl sm:text-3xl font-black font-mono tracking-wider text-indigo-700">SEC1-A</p>
+              </div>
+              <p class="text-xs text-slate-600 leading-relaxed">
+                Students navigate to the URL on their PLDs or scan the QR code to join automatically.
+              </p>
+              <div class="pt-1">
+                <span id="liveUrlPreview" class="block text-[11px] font-mono text-slate-500 truncate bg-slate-100 px-2 py-1 rounded">...</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- CARD: Question Builder & Poll Controls -->
+        <section class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <h2 class="font-bold text-slate-800 text-sm flex items-center space-x-2">
+              <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              <span>Question Builder</span>
+            </h2>
+            <!-- Mode Switcher: MCQ vs Free Text -->
+            <div class="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs font-semibold">
+              <button id="tabMcq" class="px-3 py-1 rounded-md bg-white text-indigo-700 shadow-xs transition">MCQ</button>
+              <button id="tabText" class="px-3 py-1 rounded-md text-slate-600 hover:text-slate-900 transition">Free Text</button>
+            </div>
+          </div>
+
+          <!-- Prompt Input -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-xs font-bold text-slate-700">Question Prompt</label>
+              <span class="text-[11px] text-slate-400">Singapore MOE Syllabus friendly</span>
+            </div>
+            <textarea 
+              id="pollPromptInput" 
+              rows="3" 
+              placeholder="e.g. Which organelle is primarily responsible for ATP synthesis during cellular respiration?"
+              class="w-full text-sm p-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 placeholder-slate-400"
+            ></textarea>
+            
+            <!-- Quick Preset Chips -->
+            <div class="flex flex-wrap gap-1.5 mt-2">
+              <button class="btn-preset px-2 py-0.5 text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md border border-slate-200 transition" data-prompt="True or False? The gravitational potential energy doubles if the height is doubled.">True/False</button>
+              <button class="btn-preset px-2 py-0.5 text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md border border-slate-200 transition" data-prompt="Rate your understanding of today's chemistry concept (A: Fully confident, B: Moderate, C: Need practice, D: Confused)">Confidence 1-4</button>
+              <button class="btn-preset px-2 py-0.5 text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md border border-slate-200 transition" data-prompt="Exit Ticket: Summarize the central theme of Chapter 4 in your own words.">Exit Ticket</button>
+            </div>
+          </div>
+
+          <!-- MCQ Options Section -->
+          <div id="mcqOptionsContainer" class="space-y-2 pt-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-700">Options & Correct Answer</span>
+              <span class="text-[11px] text-slate-500">Radio button marks correct answer</span>
+            </div>
+
+            <!-- Option A -->
+            <div class="flex items-center space-x-2">
+              <span class="w-6 h-6 rounded-md bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">A</span>
+              <input id="optA" type="text" value="Mitochondria" class="flex-1 text-xs sm:text-sm p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500" placeholder="Option A text" />
+              <label class="flex items-center space-x-1 cursor-pointer" title="Mark A as correct">
+                <input type="radio" name="correctOptRadio" value="A" checked class="text-indigo-600 focus:ring-indigo-500" />
+                <span class="text-xs text-slate-500 font-medium">Key</span>
+              </label>
+            </div>
+
+            <!-- Option B -->
+            <div class="flex items-center space-x-2">
+              <span class="w-6 h-6 rounded-md bg-emerald-600 text-white text-xs font-bold flex items-center justify-center shrink-0">B</span>
+              <input id="optB" type="text" value="Chloroplast" class="flex-1 text-xs sm:text-sm p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500" placeholder="Option B text" />
+              <label class="flex items-center space-x-1 cursor-pointer" title="Mark B as correct">
+                <input type="radio" name="correctOptRadio" value="B" class="text-indigo-600 focus:ring-indigo-500" />
+                <span class="text-xs text-slate-500 font-medium">Key</span>
+              </label>
+            </div>
+
+            <!-- Option C -->
+            <div class="flex items-center space-x-2">
+              <span class="w-6 h-6 rounded-md bg-amber-600 text-white text-xs font-bold flex items-center justify-center shrink-0">C</span>
+              <input id="optC" type="text" value="Ribosome" class="flex-1 text-xs sm:text-sm p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500" placeholder="Option C text" />
+              <label class="flex items-center space-x-1 cursor-pointer" title="Mark C as correct">
+                <input type="radio" name="correctOptRadio" value="C" class="text-indigo-600 focus:ring-indigo-500" />
+                <span class="text-xs text-slate-500 font-medium">Key</span>
+              </label>
+            </div>
+
+            <!-- Option D -->
+            <div class="flex items-center space-x-2">
+              <span class="w-6 h-6 rounded-md bg-purple-600 text-white text-xs font-bold flex items-center justify-center shrink-0">D</span>
+              <input id="optD" type="text" value="Endoplasmic Reticulum" class="flex-1 text-xs sm:text-sm p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500" placeholder="Option D text" />
+              <label class="flex items-center space-x-1 cursor-pointer" title="Mark D as correct">
+                <input type="radio" name="correctOptRadio" value="D" class="text-indigo-600 focus:ring-indigo-500" />
+                <span class="text-xs text-slate-500 font-medium">Key</span>
+              </label>
+            </div>
+
+            <div class="flex items-center justify-end pt-1">
+              <label class="inline-flex items-center space-x-1.5 cursor-pointer text-xs text-slate-600">
+                <input type="radio" name="correctOptRadio" value="none" class="text-indigo-600 focus:ring-indigo-500" />
+                <span>No single correct key (Opinion/Survey)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- PRIMARY ACTION BUTTONS -->
+          <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row gap-2">
+            <button id="btnLaunchQuestion" class="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-sm rounded-lg shadow-sm transition flex items-center justify-center space-x-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>Launch Question</span>
+            </button>
+
+            <button id="btnLockSubmissions" class="py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm rounded-lg shadow-sm transition flex items-center justify-center space-x-1.5">
+              <svg id="lockIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <span id="lockBtnText">Lock Poll</span>
+            </button>
+
+            <button id="btnResetQuestion" class="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm rounded-lg transition" title="Reset question and answers">
+              Next / Clear
+            </button>
+          </div>
+        </section>
+
+        <!-- CARD: Assign Tasks & Instant Announcements -->
+        <section class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+            <h2 class="font-bold text-slate-800 text-sm flex items-center space-x-2">
+              <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+              <span>Assign Classroom Task</span>
+            </h2>
+            <span id="taskProgressBadge" class="text-xs font-semibold text-slate-500">0/0 completed</span>
+          </div>
+
+          <div class="space-y-2">
+            <input id="taskTitleInput" type="text" placeholder="Task: e.g. Complete Textbook Pg 45 Q2 & Q3" class="w-full text-xs sm:text-sm p-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+            <div class="flex space-x-2">
+              <button id="btnPushTask" class="flex-1 py-1.5 px-3 text-xs font-bold bg-slate-800 hover:bg-slate-900 text-white rounded-lg transition">
+                Push Task to PLDs
+              </button>
+              <button id="btnClearTask" class="py-1.5 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition border border-slate-200">
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Chat / Broadcast to Learners -->
+          <div class="pt-3 border-t border-slate-100">
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">Broadcast Alert to All PLDs</label>
+            <div class="flex space-x-2">
+              <input id="chatBroadcastInput" type="text" placeholder="Type message (e.g. 2 minutes remaining!)..." class="flex-1 text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+              <button id="btnSendBroadcast" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition">
+                Send
+              </button>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- RIGHT COLUMN: Live Analytics, Real-time Charts, Student Responses Feed (7 cols on lg) -->
+      <div class="lg:col-span-7 space-y-6">
+
+        <!-- ACTIVE QUESTION BANNER & LIVE STATUS -->
+        <section id="activeQuestionCard" class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center space-x-2">
+              <span id="activePollDot" class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+              <span id="activePollStatusLabel" class="text-xs font-bold uppercase tracking-wider text-slate-500">No Active Question</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span id="activeCorrectAnswerBadge" class="hidden text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                Key: Option A
+              </span>
+              <button id="btnRevealAnswer" class="hidden text-xs font-semibold px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-xs">
+                Reveal Key
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <h3 id="displayPrompt" class="text-lg sm:text-xl font-extrabold text-slate-800 leading-snug">
+              Launch a question from the builder to start collecting responses in real time.
+            </h3>
+          </div>
+        </section>
+
+        <!-- LIVE ANALYTICS DASHBOARD CONTAINER -->
+        <section class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-5">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+            <div>
+              <h2 class="font-bold text-slate-800 text-base">Live Student Responses</h2>
+              <p class="text-xs text-slate-500">Real-time synchronized feedback from student PLDs</p>
+            </div>
+            <div class="flex items-center space-x-2">
+              <!-- Search in responses (for open ended) -->
+              <div id="responseSearchBox" class="hidden">
+                <input id="searchResponsesInput" type="text" placeholder="Filter answers..." class="text-xs px-2.5 py-1 rounded-md border border-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-36" />
+              </div>
+              <button id="btnToggleNames" class="px-2.5 py-1 text-xs font-medium rounded-md border border-slate-200 hover:bg-slate-50 text-slate-600 transition" title="Toggle student names for anonymous projector view">
+                Hide Names
+              </button>
+            </div>
+          </div>
+
+          <!-- MCQ VISUAL BAR BREAKDOWN VIEW -->
+          <div id="mcqResultsContainer" class="space-y-3.5">
+            <!-- Option A Bar -->
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-xs">
+                <div class="flex items-center space-x-2">
+                  <span class="w-5 h-5 rounded bg-blue-600 text-white font-bold text-[11px] flex items-center justify-center">A</span>
+                  <span id="labelBarA" class="font-semibold text-slate-800">Option A</span>
+                  <span id="correctPillA" class="hidden text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">CORRECT</span>
+                </div>
+                <div class="flex items-center space-x-2 font-mono">
+                  <span id="countBarA" class="font-bold text-slate-700">0</span>
+                  <span id="percentBarA" class="text-slate-400 font-medium">(0%)</span>
+                </div>
+              </div>
+              <div class="w-full h-8 bg-slate-100 rounded-lg overflow-hidden relative">
+                <div id="progressFillA" class="h-full bg-blue-500 transition-all duration-500 ease-out rounded-lg flex items-center px-3" style="width: 0%"></div>
+              </div>
+              <p id="studentsListA" class="text-[11px] text-slate-400 truncate pl-1"></p>
+            </div>
+
+            <!-- Option B Bar -->
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-xs">
+                <div class="flex items-center space-x-2">
+                  <span class="w-5 h-5 rounded bg-emerald-600 text-white font-bold text-[11px] flex items-center justify-center">B</span>
+                  <span id="labelBarB" class="font-semibold text-slate-800">Option B</span>
+                  <span id="correctPillB" class="hidden text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">CORRECT</span>
+                </div>
+                <div class="flex items-center space-x-2 font-mono">
+                  <span id="countBarB" class="font-bold text-slate-700">0</span>
+                  <span id="percentBarB" class="text-slate-400 font-medium">(0%)</span>
+                </div>
+              </div>
+              <div class="w-full h-8 bg-slate-100 rounded-lg overflow-hidden relative">
+                <div id="progressFillB" class="h-full bg-emerald-500 transition-all duration-500 ease-out rounded-lg flex items-center px-3" style="width: 0%"></div>
+              </div>
+              <p id="studentsListB" class="text-[11px] text-slate-400 truncate pl-1"></p>
+            </div>
+
+            <!-- Option C Bar -->
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-xs">
+                <div class="flex items-center space-x-2">
+                  <span class="w-5 h-5 rounded bg-amber-600 text-white font-bold text-[11px] flex items-center justify-center">C</span>
+                  <span id="labelBarC" class="font-semibold text-slate-800">Option C</span>
+                  <span id="correctPillC" class="hidden text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">CORRECT</span>
+                </div>
+                <div class="flex items-center space-x-2 font-mono">
+                  <span id="countBarC" class="font-bold text-slate-700">0</span>
+                  <span id="percentBarC" class="text-slate-400 font-medium">(0%)</span>
+                </div>
+              </div>
+              <div class="w-full h-8 bg-slate-100 rounded-lg overflow-hidden relative">
+                <div id="progressFillC" class="h-full bg-amber-500 transition-all duration-500 ease-out rounded-lg flex items-center px-3" style="width: 0%"></div>
+              </div>
+              <p id="studentsListC" class="text-[11px] text-slate-400 truncate pl-1"></p>
+            </div>
+
+            <!-- Option D Bar -->
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-xs">
+                <div class="flex items-center space-x-2">
+                  <span class="w-5 h-5 rounded bg-purple-600 text-white font-bold text-[11px] flex items-center justify-center">D</span>
+                  <span id="labelBarD" class="font-semibold text-slate-800">Option D</span>
+                  <span id="correctPillD" class="hidden text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">CORRECT</span>
+                </div>
+                <div class="flex items-center space-x-2 font-mono">
+                  <span id="countBarD" class="font-bold text-slate-700">0</span>
+                  <span id="percentBarD" class="text-slate-400 font-medium">(0%)</span>
+                </div>
+              </div>
+              <div class="w-full h-8 bg-slate-100 rounded-lg overflow-hidden relative">
+                <div id="progressFillD" class="h-full bg-purple-500 transition-all duration-500 ease-out rounded-lg flex items-center px-3" style="width: 0%"></div>
+              </div>
+              <p id="studentsListD" class="text-[11px] text-slate-400 truncate pl-1"></p>
+            </div>
+          </div>
+
+          <!-- FREE TEXT RESPONSES FEED VIEW (Auto-scrolling cards) -->
+          <div id="textResponsesContainer" class="hidden space-y-3">
+            <div id="textFeedScrollArea" class="max-h-[380px] overflow-y-auto space-y-2.5 pr-1">
+              <!-- Empty state default -->
+              <div id="emptyResponsesState" class="text-center py-10 text-slate-400">
+                <svg class="w-10 h-10 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <p class="text-sm font-medium">Waiting for student submissions...</p>
+              </div>
+              <!-- Injected Response Cards -->
+              <div id="textResponsesList" class="space-y-2.5"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- LIVE CONNECTED ROSTER CHIPS -->
+        <section class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+              <h2 class="font-bold text-slate-800 text-sm">Active Connected Learners</h2>
+            </div>
+            <span id="rosterCountBadge" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">0 online</span>
+          </div>
+          <div id="connectedStudentsList" class="flex flex-wrap gap-2 mt-3 min-h-[40px] items-center text-xs text-slate-400">
+            No students connected yet. Students will appear here immediately as they join.
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- ============================================================================ -->
+  <!-- MODAL: WHEEL OF NAMES STYLE CLASS ROSTER IMPORT & RANDOM PICKER               -->
+  <!-- ============================================================================ -->
+  <div id="rosterModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">📋</span>
+          <div>
+            <h3 class="font-bold text-slate-900 text-base">Class Roster Setup & Wheel Picker</h3>
+            <p class="text-xs text-slate-500">Paste student register list (Wheel of Names style) to track participation</p>
+          </div>
+        </div>
+        <button id="btnCloseRosterModal" class="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-200 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-5 flex-1">
+        <!-- Wheel / Random Cold-Caller -->
+        <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <h4 class="font-bold text-indigo-900 text-sm">🎡 Random Student Cold-Call Picker</h4>
+            <p class="text-xs text-indigo-700">Fairly select a student to explain their thought process or answer.</p>
+            <div id="pickerResult" class="mt-2 text-base font-extrabold text-indigo-900 bg-white px-3 py-1.5 rounded-lg border border-indigo-200 inline-block shadow-xs">
+              Click 'Spin / Pick Student' to choose!
+            </div>
+          </div>
+          <button id="btnSpinPicker" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow transition shrink-0">
+            Spin / Pick Student
+          </button>
+        </div>
+
+        <!-- Class List Textarea -->
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="text-xs font-bold text-slate-700">Paste Class List (One student per line)</label>
+            <div class="space-x-2">
+              <button id="btnLoadDemoClass" class="text-xs font-medium text-indigo-600 hover:underline">Load Singapore Class (Demo)</button>
+              <button id="btnClearRosterInput" class="text-xs font-medium text-slate-500 hover:underline">Clear</button>
+            </div>
+          </div>
+          <textarea 
+            id="classListInput" 
+            rows="6" 
+            placeholder="01 Ahmad bin Ali&#10;02 Bryan Tan&#10;03 Chloe Lim&#10;04 Darren Goh&#10;05 Eesha Pillay&#10;06 Farhan Lee" 
+            class="w-full text-xs font-mono p-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
+          ></textarea>
+        </div>
+
+        <!-- Roster Table / Tracker -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-slate-700">Class Checklist (<span id="rosterStatsLabel">0 students</span>)</span>
+            <span class="text-xs text-slate-500">Live check on who has answered</span>
+          </div>
+          <div id="rosterChecklistGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto border border-slate-200 rounded-lg p-2 bg-slate-50 text-xs">
+            <p class="text-slate-400 col-span-2 text-center py-4">No class list imported yet.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex justify-end space-x-2">
+        <button id="btnSaveClassList" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-lg shadow-sm transition">
+          Save Class List
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================================ -->
+  <!-- MODAL: FIREBASE CONFIGURATION & NETWORK RESILIENCE SETTINGS                   -->
+  <!-- ============================================================================ -->
+  <div id="configModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">⚡</span>
+          <div>
+            <h3 class="font-bold text-slate-900 text-base">Firebase Realtime Database Settings</h3>
+            <p class="text-xs text-slate-500">Static zero-backend synchronization for school networks</p>
+          </div>
+        </div>
+        <button id="btnCloseConfigModal" class="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-200 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-4 flex-1 text-xs">
+        <div class="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-900">
+          <p class="font-bold">Singapore MOE School Network Compliance:</p>
+          <p class="mt-1 leading-relaxed">
+            Outbound WSS/HTTPS on 443 is utilized. If credentials are left at default placeholders, the application automatically runs in 
+            <strong>Local Simulator Mode (BroadcastChannel)</strong> so you can test instantly between browser tabs without configuring Firebase!
+          </p>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Firebase Database URL</label>
+          <input id="cfgDbUrl" type="text" placeholder="https://your-project-default-rtdb.asia-southeast1.firebasedatabase.app" class="w-full font-mono p-2 border border-slate-300 rounded-lg text-xs" />
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Firebase API Key</label>
+          <input id="cfgApiKey" type="text" placeholder="AIzaSy..." class="w-full font-mono p-2 border border-slate-300 rounded-lg text-xs" />
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Project ID</label>
+          <input id="cfgProjectId" type="text" placeholder="my-school-poll" class="w-full font-mono p-2 border border-slate-300 rounded-lg text-xs" />
+        </div>
+
+        <div class="pt-2">
+          <button id="btnSaveConfig" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition shadow-xs">
+            Save & Connect to Firebase
+          </button>
+          <button id="btnUseSimulator" class="w-full mt-2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition">
+            Use Local Simulator Mode (Cross-Tab Broadcast)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================================ -->
+  <!-- PROJECTOR BIG SCREEN OVERLAY VIEW (FOCUSED FOR WHITEBOARD / PROJECTOR)       -->
+  <!-- ============================================================================ -->
+  <div id="projectorOverlay" class="fixed inset-0 z-40 bg-slate-950 text-white p-8 flex flex-col justify-between hidden">
+    <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+      <div class="flex items-center space-x-4">
+        <span class="text-2xl font-black text-indigo-400">ClassPulse</span>
+        <span class="text-slate-400 font-mono text-xl">Room: <strong id="projectorRoomCode" class="text-white">SEC1-A</strong></span>
+      </div>
+      <div class="flex items-center space-x-4">
+        <span id="projectorAnswerCount" class="text-xl font-mono text-emerald-400 font-bold">0 Answers Submitted</span>
+        <button id="btnCloseProjector" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-semibold transition">
+          Exit Projector
+        </button>
+      </div>
+    </div>
+
+    <div class="my-auto max-w-5xl mx-auto w-full space-y-8">
+      <h2 id="projectorPrompt" class="text-3xl sm:text-4xl md:text-5xl font-extrabold text-center leading-tight">
+        Waiting for question...
+      </h2>
+
+      <!-- Projector MCQ Visuals -->
+      <div id="projectorMcqBars" class="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-6">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-3">
+          <div class="w-12 h-12 mx-auto rounded-xl bg-blue-600 text-white text-2xl font-black flex items-center justify-center">A</div>
+          <p id="projOptLabelA" class="text-sm font-medium text-slate-300 truncate">Option A</p>
+          <p id="projCountA" class="text-4xl font-black text-white">0</p>
+          <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden">
+            <div id="projFillA" class="bg-blue-500 h-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-3">
+          <div class="w-12 h-12 mx-auto rounded-xl bg-emerald-600 text-white text-2xl font-black flex items-center justify-center">B</div>
+          <p id="projOptLabelB" class="text-sm font-medium text-slate-300 truncate">Option B</p>
+          <p id="projCountB" class="text-4xl font-black text-white">0</p>
+          <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden">
+            <div id="projFillB" class="bg-emerald-500 h-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-3">
+          <div class="w-12 h-12 mx-auto rounded-xl bg-amber-600 text-white text-2xl font-black flex items-center justify-center">C</div>
+          <p id="projOptLabelC" class="text-sm font-medium text-slate-300 truncate">Option C</p>
+          <p id="projCountC" class="text-4xl font-black text-white">0</p>
+          <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden">
+            <div id="projFillC" class="bg-amber-500 h-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-3">
+          <div class="w-12 h-12 mx-auto rounded-xl bg-purple-600 text-white text-2xl font-black flex items-center justify-center">D</div>
+          <p id="projOptLabelD" class="text-sm font-medium text-slate-300 truncate">Option D</p>
+          <p id="projCountD" class="text-4xl font-black text-white">0</p>
+          <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden">
+            <div id="projFillD" class="bg-purple-500 h-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Projector Free Text Carousel/Stream -->
+      <div id="projectorTextGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-[50vh] overflow-y-auto pt-4"></div>
+    </div>
+
+    <div class="text-center text-xs text-slate-500 pt-4 border-t border-slate-800">
+      Press ESC or click Exit Projector to return to Dashboard controls.
+    </div>
+  </div>
+
+  <!-- ============================================================================ -->
+  <!-- JAVASCRIPT LOGIC & ZERO-BACKEND REALTIME SYNCHRONIZATION                      -->
+  <!-- ============================================================================ -->
+  <script type="module">
+    // ============================================================================
+    // FIREBASE CONFIGURATION
+    // Replace placeholder values below with your Firebase project credentials.
+    // Console -> Project Settings -> General -> Web App.
+    // Ensure Realtime Database is enabled under "Build" -> "Realtime Database".
+    // ============================================================================
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    // Global App State
+    let currentRoomId = "SEC1-A";
+    let pollState = {
+      active: false,
+      type: "mcq", // "mcq" | "text"
+      prompt: "",
+      options: ["Mitochondria", "Chloroplast", "Ribosome", "Endoplasmic Reticulum"],
+      locked: false,
+      correctOption: "A",
+      updatedAt: Date.now()
+    };
+    let currentResponses = {};
+    let currentRoster = {};
+    let expectedClassList = [];
+    let showStudentNames = true;
+    let isSimulatorMode = false;
+    let activeTask = null;
+    let qrCodeInstance = null;
+
+    // Firebase handles (if initialized)
+    let fbApp = null;
+    let fbDb = null;
+    let broadcastChannel = null;
+
+    // DOM Elements Cache
+    const elRoomInput = document.getElementById("roomCodeInput");
+    const elDisplayRoomCode = document.getElementById("displayRoomCode");
+    const elLiveUrlPreview = document.getElementById("liveUrlPreview");
+    const elNetStatusBadge = document.getElementById("netStatusBadge");
+    const elNetStatusText = document.getElementById("netStatusText");
+    const elPollPromptInput = document.getElementById("pollPromptInput");
+    const elTabMcq = document.getElementById("tabMcq");
+    const elTabText = document.getElementById("tabText");
+    const elMcqOptionsContainer = document.getElementById("mcqOptionsContainer");
+    const elOptA = document.getElementById("optA");
+    const elOptB = document.getElementById("optB");
+    const elOptC = document.getElementById("optC");
+    const elOptD = document.getElementById("optD");
+    const elBtnLaunch = document.getElementById("btnLaunchQuestion");
+    const elBtnLock = document.getElementById("btnLockSubmissions");
+    const elLockBtnText = document.getElementById("lockBtnText");
+    const elBtnReset = document.getElementById("btnResetQuestion");
+    const elBtnPurge = document.getElementById("btnPurgeRoom");
+    const elActivePollDot = document.getElementById("activePollDot");
+    const elActivePollStatusLabel = document.getElementById("activePollStatusLabel");
+    const elDisplayPrompt = document.getElementById("displayPrompt");
+    const elActiveCorrectBadge = document.getElementById("activeCorrectAnswerBadge");
+    const elBtnReveal = document.getElementById("btnRevealAnswer");
+    const elMcqResults = document.getElementById("mcqResultsContainer");
+    const elTextResults = document.getElementById("textResponsesContainer");
+    const elTextResponsesList = document.getElementById("textResponsesList");
+    const elEmptyResponsesState = document.getElementById("emptyResponsesState");
+    const elStatConnected = document.getElementById("statConnectedStudents");
+    const elStatAnswerCount = document.getElementById("statAnswerCount");
+    const elStatAnswerPercent = document.getElementById("statAnswerPercent");
+    const elStatPollStatus = document.getElementById("statPollStatus");
+    const elConnectedList = document.getElementById("connectedStudentsList");
+    const elRosterCountBadge = document.getElementById("rosterCountBadge");
+
+    // --------------------------------------------------------------------------
+    // 1. INITIALIZE REALTIME LAYER (FIREBASE CDN ES MODULES OR SIMULATOR FALLBACK)
+    // --------------------------------------------------------------------------
+    async function initRealtimeLayer() {
+      // Check for locally saved custom credentials
+      const savedConfigStr = localStorage.getItem("classpulse_firebase_config");
+      let activeConfig = firebaseConfig;
+      if (savedConfigStr) {
+        try {
+          const parsed = JSON.parse(savedConfigStr);
+          if (parsed.apiKey && parsed.apiKey !== "YOUR_API_KEY") {
+            activeConfig = parsed;
+          }
+        } catch (e) {
+          console.warn("Invalid saved config", e);
+        }
+      }
+
+      // Check if real config or placeholder
+      const hasRealCredentials = activeConfig.apiKey && 
+                                 activeConfig.apiKey !== "YOUR_API_KEY" && 
+                                 activeConfig.databaseURL && 
+                                 !activeConfig.databaseURL.includes("YOUR_PROJECT_ID");
+
+      if (hasRealCredentials) {
+        try {
+          elNetStatusText.textContent = "Connecting to Firebase...";
+          const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js");
+          const { getDatabase, ref, onValue, set, update, remove, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js");
+
+          fbApp = initializeApp(activeConfig);
+          fbDb = getDatabase(fbApp);
+
+          // Listen to connection status
+          const connectedRef = ref(fbDb, ".info/connected");
+          onValue(connectedRef, (snap) => {
+            if (snap.val() === true) {
+              setConnectedUI(true, "Firebase RTDB Connected");
+            } else {
+              setConnectedUI(false, "Reconnecting Firebase...");
+            }
+          });
+
+          isSimulatorMode = false;
+          bindFirebaseListeners();
+          return;
+        } catch (err) {
+          console.error("Firebase init failed, switching to Simulator:", err);
+        }
+      }
+
+      // Fallback: Local Simulator Mode using BroadcastChannel and localStorage
+      // Guarantees 100% instant zero-backend real-time functionality across tabs in browser!
+      isSimulatorMode = true;
+      initSimulator();
+      setConnectedUI(true, "Simulator Mode (Cross-Tab)");
+    }
+
+    function setConnectedUI(isConnected, label) {
+      if (isConnected) {
+        elNetStatusBadge.className = "flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200";
+        elNetStatusBadge.firstElementChild.className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+      } else {
+        elNetStatusBadge.className = "flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200";
+        elNetStatusBadge.firstElementChild.className = "w-2 h-2 rounded-full bg-amber-500 animate-ping";
+      }
+      elNetStatusText.textContent = label;
+    }
+
+    // --------------------------------------------------------------------------
+    // 2. SIMULATOR (BROADCASTCHANNEL & LOCALSTORAGE ENGINE)
+    // --------------------------------------------------------------------------
+    function initSimulator() {
+      broadcastChannel = new BroadcastChannel("classpulse_channel");
+      broadcastChannel.onmessage = (event) => {
+        const { type, roomId, payload } = event.data;
+        if (roomId !== currentRoomId) return;
+
+        if (type === "STATE_CHANGED") {
+          pollState = payload;
+          renderDashboardState();
+        } else if (type === "RESPONSE_SUBMITTED") {
+          currentResponses[payload.studentId] = payload.data;
+          renderResponses();
+          updateStats();
+        } else if (type === "ROSTER_UPDATED") {
+          currentRoster[payload.studentId] = payload.data;
+          renderRoster();
+          updateStats();
+        } else if (type === "TASK_COMPLETED") {
+          updateTaskProgress();
+        } else if (type === "ROOM_PURGED") {
+          currentResponses = {};
+          renderResponses();
+          updateStats();
+        }
+      };
+
+      // Load initial cached state for room
+      const savedState = localStorage.getItem(`classpulse_state_${currentRoomId}`);
+      if (savedState) {
+        try { pollState = JSON.parse(savedState); } catch (e) {}
+      }
+      const savedResponses = localStorage.getItem(`classpulse_responses_${currentRoomId}`);
+      if (savedResponses) {
+        try { currentResponses = JSON.parse(savedResponses); } catch (e) {}
+      }
+      const savedRoster = localStorage.getItem(`classpulse_roster_${currentRoomId}`);
+      if (savedRoster) {
+        try { currentRoster = JSON.parse(savedRoster); } catch (e) {}
+      }
+
+      renderDashboardState();
+      renderResponses();
+      renderRoster();
+      updateStats();
+    }
+
+    // Unified broadcast / write helper
+    async function writeDatabasePath(subPath, data) {
+      if (!isSimulatorMode && fbDb) {
+        try {
+          const { ref, set, update } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js");
+          const targetRef = ref(fbDb, `rooms/${currentRoomId}/${subPath}`);
+          await set(targetRef, data);
+        } catch (e) {
+          console.error("Firebase write error:", e);
+        }
+      } else {
+        // Simulator store & broadcast
+        if (subPath === "state") {
+          localStorage.setItem(`classpulse_state_${currentRoomId}`, JSON.stringify(data));
+          broadcastChannel?.postMessage({ type: "STATE_CHANGED", roomId: currentRoomId, payload: data });
+        } else if (subPath === "tasks") {
+          localStorage.setItem(`classpulse_tasks_${currentRoomId}`, JSON.stringify(data));
+          broadcastChannel?.postMessage({ type: "TASK_UPDATED", roomId: currentRoomId, payload: data });
+        } else if (subPath === "chat") {
+          broadcastChannel?.postMessage({ type: "CHAT_MESSAGE", roomId: currentRoomId, payload: data });
+        }
+      }
+    }
+
+    // --------------------------------------------------------------------------
+    // 3. FIREBASE LISTENERS (WHEN CONNECTED TO REAL FIREBASE)
+    // --------------------------------------------------------------------------
+    async function bindFirebaseListeners() {
+      if (!fbDb) return;
+      const { ref, onValue } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js");
+
+      // 1. Room State listener
+      const stateRef = ref(fbDb, `rooms/${currentRoomId}/state`);
+      onValue(stateRef, (snapshot) => {
+        const val = snapshot.val();
+        if (val) {
+          pollState = val;
+          renderDashboardState();
+        }
+      });
+
+      // 2. Responses listener
+      const responsesRef = ref(fbDb, `rooms/${currentRoomId}/responses`);
+      onValue(responsesRef, (snapshot) => {
+        currentResponses = snapshot.val() || {};
+        renderResponses();
+        updateStats();
+      });
+
+      // 3. Roster / Presence listener
+      const rosterRef = ref(fbDb, `rooms/${currentRoomId}/roster`);
+      onValue(rosterRef, (snapshot) => {
+        currentRoster = snapshot.val() || {};
+        renderRoster();
+        updateStats();
+      });
+    }
+
+    // --------------------------------------------------------------------------
+    // 4. UI RENDERING ENGINES (ANALYTICS, CHARTS, RESPONSES)
+    // --------------------------------------------------------------------------
+    function renderDashboardState() {
+      if (pollState.active) {
+        elActivePollDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse";
+        elActivePollStatusLabel.textContent = pollState.locked ? "Poll Locked" : "Poll Active (Accepting Responses)";
+        elActivePollStatusLabel.className = pollState.locked 
+          ? "text-xs font-bold uppercase tracking-wider text-amber-600" 
+          : "text-xs font-bold uppercase tracking-wider text-emerald-600";
+        elStatPollStatus.textContent = pollState.locked ? "Submissions Locked" : "Accepting Answers";
+        elStatPollTypeBadge.textContent = pollState.type.toUpperCase();
+
+        elDisplayPrompt.textContent = pollState.prompt || "No prompt text provided.";
+
+        // Update Lock Button text
+        elLockBtnText.textContent = pollState.locked ? "Unlock Poll" : "Lock Poll";
+        elBtnLock.className = pollState.locked 
+          ? "py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-lg shadow-sm transition flex items-center justify-center space-x-1.5"
+          : "py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm rounded-lg shadow-sm transition flex items-center justify-center space-x-1.5";
+
+        // Correct Answer Pill
+        if (pollState.type === "mcq" && pollState.correctOption && pollState.correctOption !== "none") {
+          elActiveCorrectBadge.classList.remove("hidden");
+          elActiveCorrectBadge.textContent = `Key: Option ${pollState.correctOption}`;
+          elBtnReveal.classList.remove("hidden");
+        } else {
+          elActiveCorrectBadge.classList.add("hidden");
+          elBtnReveal.classList.add("hidden");
+        }
+
+        // View Toggles (MCQ vs Text)
+        if (pollState.type === "mcq") {
+          elMcqResults.classList.remove("hidden");
+          elTextResults.classList.add("hidden");
+          document.getElementById("responseSearchBox").classList.add("hidden");
+
+          // Update option labels in visual bars
+          const options = pollState.options || ["A", "B", "C", "D"];
+          document.getElementById("labelBarA").textContent = options[0] || "Option A";
+          document.getElementById("labelBarB").textContent = options[1] || "Option B";
+          document.getElementById("labelBarC").textContent = options[2] || "Option C";
+          document.getElementById("labelBarD").textContent = options[3] || "Option D";
+
+          // Projector labels
+          document.getElementById("projOptLabelA").textContent = options[0] || "Option A";
+          document.getElementById("projOptLabelB").textContent = options[1] || "Option B";
+          document.getElementById("projOptLabelC").textContent = options[2] || "Option C";
+          document.getElementById("projOptLabelD").textContent = options[3] || "Option D";
+        } else {
+          elMcqResults.classList.add("hidden");
+          elTextResults.classList.remove("hidden");
+          document.getElementById("responseSearchBox").classList.remove("hidden");
+        }
+      } else {
+        elActivePollDot.className = "w-2.5 h-2.5 rounded-full bg-slate-300";
+        elActivePollStatusLabel.textContent = "No Active Question";
+        elActivePollStatusLabel.className = "text-xs font-bold uppercase tracking-wider text-slate-500";
+        elStatPollStatus.textContent = "Inactive";
+        elStatPollTypeBadge.textContent = "NONE";
+        elDisplayPrompt.textContent = "Launch a question from the builder to start collecting responses in real time.";
+        elActiveCorrectBadge.classList.add("hidden");
+        elBtnReveal.classList.add("hidden");
+      }
+
+      // Projector prompt sync
+      document.getElementById("projectorPrompt").textContent = pollState.active ? pollState.prompt : "Waiting for teacher to start next question...";
+    }
+
+    function renderResponses() {
+      const responseEntries = Object.entries(currentResponses);
+      const totalAnswers = responseEntries.length;
+
+      if (pollState.type === "mcq") {
+        const counts = { A: 0, B: 0, C: 0, D: 0 };
+        const studentsByOpt = { A: [], B: [], C: [], D: [] };
+
+        responseEntries.forEach(([sId, r]) => {
+          const ans = (r.answer || "").toUpperCase();
+          if (counts[ans] !== undefined) {
+            counts[ans]++;
+            const displayName = showStudentNames ? (r.name || "Student") : "Anonymous";
+            studentsByOpt[ans].push(displayName);
+          }
+        });
+
+        const keys = ["A", "B", "C", "D"];
+        keys.forEach(k => {
+          const cnt = counts[k];
+          const pct = totalAnswers > 0 ? Math.round((cnt / totalAnswers) * 100) : 0;
+
+          // Bar elements
+          document.getElementById(`countBar${k}`).textContent = cnt;
+          document.getElementById(`percentBar${k}`).textContent = `(${pct}%)`;
+          document.getElementById(`progressFill${k}`).style.width = `${pct}%`;
+
+          // Student names list below bar
+          const listElem = document.getElementById(`studentsList${k}`);
+          listElem.textContent = studentsByOpt[k].length > 0 
+            ? `${studentsByOpt[k].join(", ")}` 
+            : "No submissions yet";
+
+          // Projector bar sync
+          document.getElementById(`projCount${k}`).textContent = cnt;
+          document.getElementById(`projFill${k}`).style.width = `${pct}%`;
+        });
+      } else {
+        // Free Text Feed
+        renderTextResponsesFeed();
+      }
+
+      updateRosterChecklistStatus();
+    }
+
+    function renderTextResponsesFeed() {
+      const responseEntries = Object.entries(currentResponses);
+      const filter = (document.getElementById("searchResponsesInput")?.value || "").toLowerCase();
+
+      elTextResponsesList.innerHTML = "";
+      document.getElementById("projectorTextGrid").innerHTML = "";
+
+      if (responseEntries.length === 0) {
+        elEmptyResponsesState.classList.remove("hidden");
+        return;
+      }
+
+      elEmptyResponsesState.classList.add("hidden");
+
+      // Sort recent first
+      const sorted = [...responseEntries].sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0));
+
+      sorted.forEach(([sId, r]) => {
+        const studentName = showStudentNames ? (r.name || "Student") : "Anonymous Student";
+        const answerText = r.answer || "";
+        const regNo = r.registerNo ? `#${r.registerNo}` : "";
+
+        if (filter && !answerText.toLowerCase().includes(filter) && !studentName.toLowerCase().includes(filter)) {
+          return;
+        }
+
+        const timeStr = r.timestamp ? new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : "Just now";
+
+        // Dashboard Card
+        const card = document.createElement("div");
+        card.className = "p-3.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl transition shadow-2xs space-y-1.5";
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="font-bold text-xs text-slate-800">${studentName}</span>
+              ${regNo ? `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold">${regNo}</span>` : ""}
+            </div>
+            <span class="text-[10px] font-mono text-slate-400">${timeStr}</span>
+          </div>
+          <p class="text-xs sm:text-sm text-slate-700 leading-relaxed break-words">${escapeHtml(answerText)}</p>
+        `;
+        elTextResponsesList.appendChild(card);
+
+        // Projector Card
+        const projCard = document.createElement("div");
+        projCard.className = "p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2";
+        projCard.innerHTML = `
+          <div class="flex items-center justify-between text-xs text-slate-400">
+            <span class="font-bold text-indigo-400">${studentName}</span>
+            <span class="font-mono text-[10px]">${timeStr}</span>
+          </div>
+          <p class="text-sm text-slate-200 leading-relaxed break-words">${escapeHtml(answerText)}</p>
+        `;
+        document.getElementById("projectorTextGrid").appendChild(projCard);
+      });
+    }
+
+    function renderRoster() {
+      const rosterEntries = Object.entries(currentRoster);
+      const onlineCount = rosterEntries.filter(([_, s]) => s.online !== false).length;
+
+      elStatConnected.textContent = onlineCount;
+      elRosterCountBadge.textContent = `${onlineCount} online`;
+
+      elConnectedList.innerHTML = "";
+      if (rosterEntries.length === 0) {
+        elConnectedList.innerHTML = `<span class="text-slate-400 italic">No student PLDs connected yet. Share the room code: <strong>${currentRoomId}</strong></span>`;
+        return;
+      }
+
+      rosterEntries.forEach(([sId, s]) => {
+        const pill = document.createElement("div");
+        const isOnline = s.online !== false;
+        pill.className = `flex items-center space-x-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition ${
+          isOnline 
+            ? "bg-emerald-50 text-emerald-800 border-emerald-200" 
+            : "bg-slate-100 text-slate-500 border-slate-200"
+        }`;
+        pill.innerHTML = `
+          <span class="w-2 h-2 rounded-full ${isOnline ? "bg-emerald-500" : "bg-slate-400"}"></span>
+          <span class="font-semibold">${escapeHtml(s.name || "Student")}</span>
+          ${s.registerNo ? `<span class="text-[10px] opacity-75 font-mono">#${s.registerNo}</span>` : ""}
+        `;
+        elConnectedList.appendChild(pill);
+      });
+
+      updateRosterChecklistStatus();
+    }
+
+    function updateStats() {
+      const activeCount = Object.keys(currentRoster).length;
+      const answeredCount = Object.keys(currentResponses).length;
+
+      elStatAnswerCount.textContent = answeredCount;
+      document.getElementById("projectorAnswerCount").textContent = `${answeredCount} Answers Submitted`;
+
+      const pct = activeCount > 0 ? Math.round((answeredCount / activeCount) * 100) : 0;
+      elStatAnswerPercent.textContent = `(${pct}%)`;
+
+      document.getElementById("statResponseSubtitle").textContent = activeCount > 0 
+        ? `${answeredCount} of ${activeCount} active PLDs`
+        : "Waiting for students to join";
+    }
+
+    function updateRosterChecklistStatus() {
+      const grid = document.getElementById("rosterChecklistGrid");
+      if (!expectedClassList || expectedClassList.length === 0) {
+        grid.innerHTML = `<p class="text-slate-400 col-span-2 text-center py-4">No class roster imported yet. Paste student names above.</p>`;
+        return;
+      }
+
+      grid.innerHTML = "";
+      expectedClassList.forEach((studentName, idx) => {
+        // Find if this student has connected in currentRoster or answered
+        const foundEntry = Object.entries(currentRoster).find(([_, r]) => 
+          (r.name || "").toLowerCase().includes(studentName.toLowerCase()) || 
+          studentName.toLowerCase().includes((r.name || "").toLowerCase())
+        );
+        const hasJoined = !!foundEntry;
+        const hasAnswered = foundEntry && currentResponses[foundEntry[0]];
+
+        const item = document.createElement("div");
+        item.className = `p-2 rounded-lg border flex items-center justify-between ${
+          hasAnswered 
+            ? "bg-emerald-50 border-emerald-200 text-emerald-900" 
+            : hasJoined 
+              ? "bg-indigo-50 border-indigo-200 text-indigo-900"
+              : "bg-white border-slate-200 text-slate-600"
+        }`;
+        item.innerHTML = `
+          <div class="flex items-center space-x-2 truncate">
+            <span class="text-[10px] font-mono text-slate-400">${idx + 1 < 10 ? '0' + (idx+1) : idx+1}</span>
+            <span class="font-semibold truncate">${escapeHtml(studentName)}</span>
+          </div>
+          <div class="flex items-center space-x-1 shrink-0">
+            ${hasAnswered 
+              ? `<span class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-200 text-emerald-800">✅ Answered</span>`
+              : hasJoined 
+                ? `<span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-indigo-200 text-indigo-800">Joined</span>`
+                : `<span class="px-1.5 py-0.5 text-[10px] rounded bg-slate-100 text-slate-400">Offline</span>`
+            }
+          </div>
+        `;
+        grid.appendChild(item);
+      });
+    }
+
+    // --------------------------------------------------------------------------
+    // 5. EVENT HANDLERS & USER INTERACTIONS
+    // --------------------------------------------------------------------------
+    // Launch Question
+    elBtnLaunch.addEventListener("click", async () => {
+      const prompt = elPollPromptInput.value.trim();
+      if (!prompt) {
+        alert("Please enter a question prompt before launching.");
+        elPollPromptInput.focus();
+        return;
+      }
+
+      const isMcq = elTabMcq.classList.contains("bg-white");
+      const selectedCorrectRadio = document.querySelector('input[name="correctOptRadio"]:checked');
+      const correctOpt = selectedCorrectRadio ? selectedCorrectRadio.value : "none";
+
+      pollState = {
+        active: true,
+        type: isMcq ? "mcq" : "text",
+        prompt: prompt,
+        options: [
+          elOptA.value.trim() || "Option A",
+          elOptB.value.trim() || "Option B",
+          elOptC.value.trim() || "Option C",
+          elOptD.value.trim() || "Option D"
+        ],
+        locked: false,
+        correctOption: correctOpt === "none" ? null : correctOpt,
+        updatedAt: Date.now()
+      };
+
+      // Reset previous responses when launching new question
+      currentResponses = {};
+      if (isSimulatorMode) {
+        localStorage.setItem(`classpulse_responses_${currentRoomId}`, JSON.stringify({}));
+      }
+
+      await writeDatabasePath("state", pollState);
+      await writeDatabasePath("responses", {});
+
+      renderDashboardState();
+      renderResponses();
+      updateStats();
+    });
+
+    // Lock / Unlock Submissions
+    elBtnLock.addEventListener("click", async () => {
+      if (!pollState.active) return;
+      pollState.locked = !pollState.locked;
+      pollState.updatedAt = Date.now();
+      await writeDatabasePath("state", pollState);
+      renderDashboardState();
+    });
+
+    // Reset / Next Question
+    elBtnReset.addEventListener("click", async () => {
+      if (!confirm("Are you sure you want to end this question and reset?")) return;
+      pollState.active = false;
+      pollState.locked = false;
+      pollState.updatedAt = Date.now();
+      await writeDatabasePath("state", pollState);
+      renderDashboardState();
+    });
+
+    // Reveal Correct Answer
+    elBtnReveal.addEventListener("click", async () => {
+      if (!pollState.correctOption) {
+        alert("No correct answer marked for this question.");
+        return;
+      }
+      // Broadcast answer revealed flag or alert
+      await writeDatabasePath("state/revealed", true);
+      alert(`Correct Answer: Option ${pollState.correctOption}! Revealed to student PLDs.`);
+    });
+
+    // Purge Room Submissions
+    elBtnPurge.addEventListener("click", async () => {
+      if (!confirm(`Clear all student submissions and answers for room ${currentRoomId}?`)) return;
+      currentResponses = {};
+      await writeDatabasePath("responses", {});
+      if (isSimulatorMode) {
+        localStorage.removeItem(`classpulse_responses_${currentRoomId}`);
+        broadcastChannel?.postMessage({ type: "ROOM_PURGED", roomId: currentRoomId });
+      }
+      renderResponses();
+      updateStats();
+    });
+
+    // Switch Question Type Tabs
+    elTabMcq.addEventListener("click", () => {
+      elTabMcq.className = "px-3 py-1 rounded-md bg-white text-indigo-700 shadow-xs transition";
+      elTabText.className = "px-3 py-1 rounded-md text-slate-600 hover:text-slate-900 transition";
+      elMcqOptionsContainer.classList.remove("hidden");
+    });
+
+    elTabText.addEventListener("click", () => {
+      elTabText.className = "px-3 py-1 rounded-md bg-white text-indigo-700 shadow-xs transition";
+      elTabMcq.className = "px-3 py-1 rounded-md text-slate-600 hover:text-slate-900 transition";
+      elMcqOptionsContainer.classList.add("hidden");
+    });
+
+    // Preset Prompt Chips
+    document.querySelectorAll(".btn-preset").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        elPollPromptInput.value = e.target.getAttribute("data-prompt") || "";
+      });
+    });
+
+    // Assign Classroom Task
+    document.getElementById("btnPushTask").addEventListener("click", async () => {
+      const title = document.getElementById("taskTitleInput").value.trim();
+      if (!title) return;
+      activeTask = {
+        title: title,
+        active: true,
+        updatedAt: Date.now()
+      };
+      await writeDatabasePath("tasks", activeTask);
+      alert(`Task pushed to student PLDs: "${title}"`);
+    });
+
+    document.getElementById("btnClearTask").addEventListener("click", async () => {
+      document.getElementById("taskTitleInput").value = "";
+      activeTask = { active: false };
+      await writeDatabasePath("tasks", activeTask);
+    });
+
+    // Broadcast Chat to Students
+    document.getElementById("btnSendBroadcast").addEventListener("click", async () => {
+      const msg = document.getElementById("chatBroadcastInput").value.trim();
+      if (!msg) return;
+      const chatPayload = {
+        id: "msg_" + Date.now(),
+        sender: "Teacher",
+        text: msg,
+        timestamp: Date.now(),
+        isTeacher: true
+      };
+      await writeDatabasePath("chat/latest", chatPayload);
+      document.getElementById("chatBroadcastInput").value = "";
+      alert(`Broadcast sent: "${msg}"`);
+    });
+
+    // Room Code Changer
+    document.getElementById("btnApplyRoom").addEventListener("click", () => {
+      const newRoom = elRoomInput.value.trim().toUpperCase();
+      if (newRoom && newRoom !== currentRoomId) {
+        currentRoomId = newRoom;
+        updateRoomSetup();
+      }
+    });
+
+    // Copy Student Link
+    document.getElementById("btnCopyStudentUrl").addEventListener("click", () => {
+      const studentUrl = getStudentUrl();
+      navigator.clipboard.writeText(studentUrl).then(() => {
+        const txt = document.getElementById("copyBtnText");
+        txt.textContent = "Copied!";
+        setTimeout(() => { txt.textContent = "Copy Link"; }, 2000);
+      });
+    });
+
+    // Launch Student Tab
+    document.getElementById("btnOpenStudentTab").addEventListener("click", () => {
+      window.open(getStudentUrl(), "_blank");
+    });
+
+    // Projector Mode
+    document.getElementById("btnToggleProjector").addEventListener("click", () => {
+      document.getElementById("projectorOverlay").classList.remove("hidden");
+    });
+    document.getElementById("btnCloseProjector").addEventListener("click", () => {
+      document.getElementById("projectorOverlay").classList.add("hidden");
+    });
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        document.getElementById("projectorOverlay").classList.add("hidden");
+      }
+    });
+
+    // Anonymous toggle
+    document.getElementById("btnToggleNames").addEventListener("click", (e) => {
+      showStudentNames = !showStudentNames;
+      e.target.textContent = showStudentNames ? "Hide Names" : "Show Names";
+      renderResponses();
+      renderRoster();
+    });
+
+    // Search filter in responses
+    document.getElementById("searchResponsesInput")?.addEventListener("input", () => {
+      renderTextResponsesFeed();
+    });
+
+    // --------------------------------------------------------------------------
+    // 6. WHEEL OF NAMES STYLE ROSTER MODAL & COLD-CALL SPINNER
+    // --------------------------------------------------------------------------
+    const rosterModal = document.getElementById("rosterModal");
+    document.getElementById("btnOpenRosterModal").addEventListener("click", () => {
+      rosterModal.classList.remove("hidden");
+    });
+    document.getElementById("btnCloseRosterModal").addEventListener("click", () => {
+      rosterModal.classList.add("hidden");
+    });
+
+    document.getElementById("btnLoadDemoClass").addEventListener("click", () => {
+      const singaporeStudents = [
+        "01 Ahmad bin Ali",
+        "02 Bryan Tan",
+        "03 Chloe Lim",
+        "04 Darren Goh",
+        "05 Eesha Pillay",
+        "06 Farhan Lee",
+        "07 Grace Wong",
+        "08 Harish Kumar",
+        "09 Isaac Ng",
+        "10 Joanne Teo",
+        "11 Keith Chia",
+        "12 Lauren Yeo",
+        "13 Marcus Tay",
+        "14 Nadya Binte Zulkifli",
+        "15 Owen Sim",
+        "16 Priya S.",
+        "17 Ryan Chen",
+        "18 Siti Nurhaliza",
+        "19 Tristan Pang",
+        "20 Vanessa Seah"
+      ];
+      document.getElementById("classListInput").value = singaporeStudents.join("\n");
+    });
+
+    document.getElementById("btnClearRosterInput").addEventListener("click", () => {
+      document.getElementById("classListInput").value = "";
+    });
+
+    document.getElementById("btnSaveClassList").addEventListener("click", async () => {
+      const raw = document.getElementById("classListInput").value;
+      const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
+      expectedClassList = lines;
+      localStorage.setItem(`classpulse_classlist_${currentRoomId}`, JSON.stringify(expectedClassList));
+      document.getElementById("rosterStatsLabel").textContent = `${expectedClassList.length} students`;
+      updateRosterChecklistStatus();
+      await writeDatabasePath("classList", expectedClassList);
+      rosterModal.classList.add("hidden");
+    });
+
+    // Random Student Wheel Picker
+    document.getElementById("btnSpinPicker").addEventListener("click", () => {
+      const pool = expectedClassList.length > 0 
+        ? expectedClassList 
+        : Object.values(currentRoster).map(r => r.name);
+
+      if (!pool || pool.length === 0) {
+        document.getElementById("pickerResult").textContent = "Please import a class list or wait for students to join.";
+        return;
+      }
+
+      const resBox = document.getElementById("pickerResult");
+      let count = 0;
+      const interval = setInterval(() => {
+        const rand = pool[Math.floor(Math.random() * pool.length)];
+        resBox.textContent = `🎲 Picking... ${rand}`;
+        count++;
+        if (count > 15) {
+          clearInterval(interval);
+          const winner = pool[Math.floor(Math.random() * pool.length)];
+          resBox.innerHTML = `🎉 Selected: <strong class="text-indigo-600 text-lg">${winner}</strong>`;
+        }
+      }, 80);
+    });
+
+    // --------------------------------------------------------------------------
+    // 7. FIREBASE CREDENTIALS CONFIG MODAL
+    // --------------------------------------------------------------------------
+    const configModal = document.getElementById("configModal");
+    document.getElementById("btnOpenConfigModal").addEventListener("click", () => {
+      configModal.classList.remove("hidden");
+      const saved = localStorage.getItem("classpulse_firebase_config");
+      if (saved) {
+        try {
+          const cfg = JSON.parse(saved);
+          document.getElementById("cfgDbUrl").value = cfg.databaseURL || "";
+          document.getElementById("cfgApiKey").value = cfg.apiKey || "";
+          document.getElementById("cfgProjectId").value = cfg.projectId || "";
+        } catch(e) {}
+      }
+    });
+    document.getElementById("btnCloseConfigModal").addEventListener("click", () => {
+      configModal.classList.add("hidden");
+    });
+
+    document.getElementById("btnSaveConfig").addEventListener("click", () => {
+      const dbUrl = document.getElementById("cfgDbUrl").value.trim();
+      const apiKey = document.getElementById("cfgApiKey").value.trim();
+      const projId = document.getElementById("cfgProjectId").value.trim();
+
+      const newConfig = {
+        apiKey: apiKey || "YOUR_API_KEY",
+        authDomain: `${projId || "my-project"}.firebaseapp.com`,
+        databaseURL: dbUrl || "https://my-project-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: projId || "my-project",
+        storageBucket: `${projId || "my-project"}.appspot.com`,
+        messagingSenderId: "1234567890",
+        appId: "1:1234567890:web:abcdef"
+      };
+
+      localStorage.setItem("classpulse_firebase_config", JSON.stringify(newConfig));
+      configModal.classList.add("hidden");
+      location.reload();
+    });
+
+    document.getElementById("btnUseSimulator").addEventListener("click", () => {
+      localStorage.removeItem("classpulse_firebase_config");
+      configModal.classList.add("hidden");
+      location.reload();
+    });
+
+    // --------------------------------------------------------------------------
+    // 8. HELPERS & ROOM SETUP
+    // --------------------------------------------------------------------------
+    function getStudentUrl() {
+      // Determine student URL relative to current location
+      const loc = window.location;
+      const baseUrl = loc.origin + loc.pathname.replace("teacher.html", "index.html");
+      return `${baseUrl}?room=${encodeURIComponent(currentRoomId)}`;
+    }
+
+    function updateRoomSetup() {
+      elDisplayRoomCode.textContent = currentRoomId;
+      document.getElementById("projectorRoomCode").textContent = currentRoomId;
+      elRoomInput.value = currentRoomId;
+
+      const studentUrl = getStudentUrl();
+      elLiveUrlPreview.textContent = studentUrl;
+
+      // Render or Update QR Code
+      const qrContainer = document.getElementById("qrcode");
+      qrContainer.innerHTML = "";
+      qrCodeInstance = new QRCode(qrContainer, {
+        text: studentUrl,
+        width: 130,
+        height: 130,
+        colorDark: "#1e1b4b",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
+
+      // Load classlist if exists
+      const savedList = localStorage.getItem(`classpulse_classlist_${currentRoomId}`);
+      if (savedList) {
+        try {
+          expectedClassList = JSON.parse(savedList);
+          document.getElementById("rosterStatsLabel").textContent = `${expectedClassList.length} students`;
+          document.getElementById("classListInput").value = expectedClassList.join("\n");
+        } catch(e) {}
+      }
+
+      if (isSimulatorMode) {
+        initSimulator();
+      } else {
+        bindFirebaseListeners();
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // Initialize application on load
+    window.addEventListener("DOMContentLoaded", () => {
+      // Check query param for room
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("room")) {
+        currentRoomId = params.get("room").toUpperCase();
+      }
+
+      updateRoomSetup();
+      initRealtimeLayer();
+    });
+
+    // Split Screen Demo Controls
+    const splitModal = document.getElementById("splitViewModal");
+    document.getElementById("btnOpenSplitDemo")?.addEventListener("click", () => {
+      splitModal.classList.remove("hidden");
+    });
+    document.getElementById("btnCloseSplitDemo")?.addEventListener("click", () => {
+      splitModal.classList.add("hidden");
+    });
+  </script>
+
+  <!-- Floating App Navigation Toolbar -->
+  <nav class="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 bg-slate-900/90 text-white backdrop-blur-md px-3 py-1.5 rounded-full shadow-lg border border-slate-700 flex items-center space-x-1 sm:space-x-2 text-xs font-semibold">
+    <a href="index.html" class="px-2.5 py-1 rounded-full text-slate-300 hover:text-white hover:bg-slate-800 transition">Student PLD</a>
+    <span class="px-2.5 py-1 rounded-full bg-indigo-600 text-white">Teacher Host</span>
+    <button id="btnOpenSplitDemo" class="px-2.5 py-1 rounded-full text-amber-300 hover:text-amber-200 hover:bg-slate-800 transition flex items-center space-x-1">
+      <span>📱 Split View</span>
+    </button>
+  </nav>
+
+  <!-- Split View Demo Modal (Side-by-side Teacher & Student) -->
+  <div id="splitViewModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex flex-col hidden">
+    <div class="bg-slate-900 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between text-white">
+      <div class="flex items-center space-x-2">
+        <span class="text-sm font-bold text-indigo-400">ClassPulse Classroom Simulation</span>
+        <span class="text-xs text-slate-400 hidden sm:inline">• Test Teacher Controls & Student Responses Side-by-Side</span>
+      </div>
+      <button id="btnCloseSplitDemo" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg transition">
+        Exit Split View
+      </button>
+    </div>
+    <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2 p-2 overflow-hidden">
+      <div class="bg-white rounded-xl overflow-hidden flex flex-col border border-slate-800 shadow">
+        <div class="bg-slate-100 px-3 py-1 border-b border-slate-200 text-xs font-bold text-slate-700">Teacher Dashboard (Host)</div>
+        <iframe src="teacher.html?room=SEC1-A" class="w-full flex-1 border-none"></iframe>
+      </div>
+      <div class="bg-white rounded-xl overflow-hidden flex flex-col border border-slate-800 shadow">
+        <div class="bg-slate-100 px-3 py-1 border-b border-slate-200 text-xs font-bold text-slate-700">Student PLD View</div>
+        <iframe src="index.html?room=SEC1-A" class="w-full flex-1 border-none"></iframe>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

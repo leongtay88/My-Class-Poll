@@ -1,0 +1,6 @@
+{
+  "name": "ClassPulse Real-Time Classroom Polling",
+  "description": "Resilient real-time classroom polling, live roster tracking, and task dashboard for student PLDs and teacher host on school networks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
